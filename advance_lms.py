@@ -9,8 +9,8 @@ st.set_page_config(page_title="✨ Super Advanced LMS Dashboard", layout="wide")
 # ------------------- LOAD DATA -------------------
 DATA_FILE = "Main.xlsx"
 
-@st.cache_data
 def load_data(file):
+    # Always read latest Excel file
     df = pd.read_excel(file, engine='openpyxl')
     for col in df.columns:
         if "date" in col.lower():
@@ -165,7 +165,7 @@ def main_page():
 def analytics_page():
     st.markdown("<h1 style='color:#1f77b4;'>📈 LMS Dashboard - Analytics</h1>", unsafe_allow_html=True)
     filtered_df = st.session_state['filtered_df']
-    chart_cols = ['Course', 'State', 'Mode', 'Intake Year']
+    chart_cols = ['Course', 'State', 'Mode', 'Intake Year', 'Counsellor', 'Target Country']
 
     for col in chart_cols:
         if col in filtered_df.columns:
