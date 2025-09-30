@@ -21,33 +21,35 @@ def load_data(file):
     df.fillna("", inplace=True)
     return df
 
-# Load main file
+# ------------------- INITIAL DATA -------------------
 if not os.path.exists(DATA_FILE):
     st.error(f"❌ `{DATA_FILE}` not found.")
     st.stop()
 
-df = load_data(DATA_FILE)
+df_main = load_data(DATA_FILE)
+df_display = df_main.copy()  # This will be updated if a file is uploaded
 
 # ------------------- FILE UPLOAD -------------------
-st.sidebar.markdown("### 📂 Upload Additional File")
+st.sidebar.markdown("### 📂 Upload XLSX or CSV")
 uploaded_file = st.sidebar.file_uploader(
     "Upload XLSX or CSV", type=["xlsx", "csv"]
 )
 if uploaded_file:
-    uploaded_df = load_data(uploaded_file)
+    df_uploaded = load_data(uploaded_file)
     st.sidebar.success("✅ File uploaded successfully!")
-    df = pd.concat([df, uploaded_df], ignore_index=True)
+    df_display = df_uploaded.copy()  # Show uploaded data
+else:
+    df_display = df_main.copy()  # Show default main data
 
 # ------------------- SESSION STATE -------------------
 if "page" not in st.session_state:
     st.session_state["page"] = "main"
 
-# Resettable states
 reset_keys = ["filtered_df", "selected_values", "date_ranges", "page_number", "select_all_state"]
 for key in reset_keys:
     if key not in st.session_state:
         if key == "filtered_df":
-            st.session_state[key] = df.copy()
+            st.session_state[key] = df_display.copy()
         elif key == "selected_values":
             st.session_state[key] = {}
         elif key == "date_ranges":
@@ -58,8 +60,7 @@ for key in reset_keys:
             st.session_state[key] = {}
 
 # ------------------- CUSTOM CSS -------------------
-st.markdown(
-    """
+st.markdown("""
 <style>
 .filter-heading { font-size: 18px; font-weight: bold; color: #1f77b4; margin-top: 15px; margin-bottom: 5px; border-bottom: 2px solid #1f77b4; padding-bottom: 3px;}
 .small-widget .stTextInput>div>div>input, .small-widget .stMultiSelect>div>div>div>div>div>div>input { font-size: 13px; padding: 3px;}
@@ -67,9 +68,7 @@ st.markdown(
 .stMetric:hover { transform: scale(1.05); }
 .dataframe { font-size: 14px; }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # ------------------- MAIN DASHBOARD -------------------
 def main_page():
@@ -84,7 +83,7 @@ def main_page():
     if st.sidebar.button("🧹 Clear Filters"):
         for key in reset_keys:
             if key == "filtered_df":
-                st.session_state[key] = df.copy()
+                st.session_state[key] = df_display.copy()
             elif key == "selected_values":
                 st.session_state[key] = {}
             elif key == "date_ranges":
@@ -95,39 +94,41 @@ def main_page():
                 st.session_state[key] = {}
         st.rerun()
 
-    # Start with full df
-    filtered_df = df.copy()
+    filtered_df = df_display.copy()
     selected_values = st.session_state["selected_values"]
     date_ranges = st.session_state["date_ranges"]
     select_all_state = st.session_state["select_all_state"]
 
     # ------------------- FILTER LOGIC -------------------
-    for col in df.columns:
+    for col in df_display.columns:
         st.sidebar.markdown(f'<div class="filter-heading">{col}</div>', unsafe_allow_html=True)
 
         if "date" in col.lower():
-            min_date, max_date = df[col].min(), df[col].max()
+            min_date, max_date = df_display[col].min(), df_display[col].max()
             start_date, end_date = st.sidebar.date_input(
                 f"{col} range",
                 value=date_ranges.get(col, [min_date, max_date]),
                 min_value=min_date,
                 max_value=max_date,
-                key=f"date_{col}",
+                key=f"date_{col}"
             )
             date_ranges[col] = [start_date, end_date]
             filtered_df = filtered_df[
-                (filtered_df[col] >= pd.to_datetime(start_date))
-                & (filtered_df[col] <= pd.to_datetime(end_date))
+                (filtered_df[col] >= pd.to_datetime(start_date)) &
+                (filtered_df[col] <= pd.to_datetime(end_date))
             ]
         else:
+            # Dynamic options based on current filtered_df
             options = sorted(filtered_df[col].dropna().astype(str).unique())
+            # Search filter
             search_term = st.sidebar.text_input(f"Search {col}", "", key=f"search_{col}")
             if search_term:
                 options = [opt for opt in options if search_term.lower() in opt.lower()]
+            # Select All
             select_all = st.sidebar.checkbox(
                 f"Select All {col}",
                 key=f"select_all_{col}",
-                value=select_all_state.get(col, False),
+                value=select_all_state.get(col, False)
             )
             select_all_state[col] = select_all
             if select_all:
@@ -137,16 +138,17 @@ def main_page():
                     f"Select {col}",
                     options,
                     default=selected_values.get(col, []),
-                    key=f"multi_{col}",
+                    key=f"multi_{col}"
                 )
                 if selected:
                     selected_values[col] = selected
                 elif col in selected_values:
                     selected_values.pop(col)
+            # Apply filter
             if col in selected_values and selected_values[col]:
                 filtered_df = filtered_df[filtered_df[col].astype(str).isin(selected_values[col])]
 
-    # Save state
+    # Save session
     st.session_state["filtered_df"] = filtered_df
     st.session_state["selected_values"] = selected_values
     st.session_state["date_ranges"] = date_ranges
@@ -164,10 +166,10 @@ def main_page():
     # ------------------- METRICS -------------------
     st.markdown("### 📊 Key Metrics")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Leads", df.shape[0])
+    c1.metric("Total Leads", df_display.shape[0])
     c2.metric("Filtered Leads", filtered_df.shape[0])
-    c3.metric("Unique Courses", filtered_df["Course"].nunique() if "Course" in df.columns else 0)
-    c4.metric("Unique States", filtered_df["State"].nunique() if "State" in df.columns else 0)
+    c3.metric("Unique Courses", filtered_df["Course"].nunique() if "Course" in filtered_df.columns else 0)
+    c4.metric("Unique States", filtered_df["State"].nunique() if "State" in filtered_df.columns else 0)
 
     # ------------------- DOWNLOAD -------------------
     st.markdown("### 💾 Download Data")
@@ -179,7 +181,7 @@ def main_page():
     )
     col2.download_button(
         "Download All Data",
-        df.to_csv(index=False).encode("utf-8"),
+        df_display.to_csv(index=False).encode("utf-8"),
         "all_data.csv",
     )
 
@@ -189,7 +191,7 @@ def main_page():
     )
     st.dataframe(page_data, use_container_width=True)
 
-    # Pagination
+    # Pagination buttons
     col_prev, col_next = st.columns(2)
     if col_prev.button("⬅️ Previous Page") and page_number > 0:
         st.session_state["page_number"] -= 1
@@ -208,12 +210,10 @@ def analytics_page():
         if col in filtered_df.columns:
             counts = filtered_df[col].value_counts().reset_index()
             counts.columns = [col, "Count"]
-
             st.subheader(f"Leads by {col}")
             fig_bar = px.bar(counts, x=col, y="Count", color="Count", text="Count")
             fig_bar.update_traces(marker_line_width=1.5, marker_line_color="black")
             fig_pie = px.pie(counts, names=col, values="Count")
-
             st.plotly_chart(fig_bar, use_container_width=True)
             st.plotly_chart(fig_pie, use_container_width=True)
 
