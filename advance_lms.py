@@ -42,7 +42,6 @@ if uploaded_file:
 if "page" not in st.session_state:
     st.session_state["page"] = "main"
 
-# Resettable states
 reset_keys = ["filtered_df", "selected_values", "date_ranges", "page_number", "select_all_state"]
 for key in reset_keys:
     if key not in st.session_state:
@@ -58,8 +57,7 @@ for key in reset_keys:
             st.session_state[key] = {}
 
 # ------------------- CUSTOM CSS -------------------
-st.markdown(
-    """
+st.markdown("""
 <style>
 .filter-heading { font-size: 18px; font-weight: bold; color: #1f77b4; margin-top: 15px; margin-bottom: 5px; border-bottom: 2px solid #1f77b4; padding-bottom: 3px;}
 .small-widget .stTextInput>div>div>input, .small-widget .stMultiSelect>div>div>div>div>div>div>input { font-size: 13px; padding: 3px;}
@@ -67,9 +65,7 @@ st.markdown(
 .stMetric:hover { transform: scale(1.05); }
 .dataframe { font-size: 14px; }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # ------------------- MAIN DASHBOARD -------------------
 def main_page():
@@ -106,7 +102,7 @@ def main_page():
         st.sidebar.markdown(f'<div class="filter-heading">{col}</div>', unsafe_allow_html=True)
 
         if "date" in col.lower():
-            min_date, max_date = df[col].min(), df[col].max()
+            min_date, max_date = filtered_df[col].min(), filtered_df[col].max()
             start_date, end_date = st.sidebar.date_input(
                 f"{col} range",
                 value=date_ranges.get(col, [min_date, max_date]),
@@ -120,6 +116,7 @@ def main_page():
                 & (filtered_df[col] <= pd.to_datetime(end_date))
             ]
         else:
+            # Use filtered_df for dynamic options
             options = sorted(filtered_df[col].dropna().astype(str).unique())
             search_term = st.sidebar.text_input(f"Search {col}", "", key=f"search_{col}")
             if search_term:
@@ -184,9 +181,7 @@ def main_page():
     )
 
     # ------------------- TABLE -------------------
-    st.markdown(
-        f"### 📄 Filtered Data Preview ({start_idx+1} to {min(end_idx, len(filtered_df))} of {len(filtered_df)})"
-    )
+    st.markdown(f"### 📄 Filtered Data Preview ({start_idx+1} to {min(end_idx, len(filtered_df))} of {len(filtered_df)})")
     st.dataframe(page_data, use_container_width=True)
 
     # Pagination
