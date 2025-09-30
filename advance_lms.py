@@ -11,18 +11,32 @@ DATA_FILE = "Main.xlsx"
 
 @st.cache_data
 def load_data(file):
-    df = pd.read_excel(file, engine="openpyxl")
+    if str(file).endswith(".csv"):
+        df = pd.read_csv(file)
+    else:
+        df = pd.read_excel(file, engine="openpyxl")
     for col in df.columns:
         if "date" in col.lower():
             df[col] = pd.to_datetime(df[col], errors="coerce")
     df.fillna("", inplace=True)
     return df
 
+# Load main file
 if not os.path.exists(DATA_FILE):
     st.error(f"❌ `{DATA_FILE}` not found.")
     st.stop()
 
 df = load_data(DATA_FILE)
+
+# ------------------- FILE UPLOAD -------------------
+st.sidebar.markdown("### 📂 Upload Additional File")
+uploaded_file = st.sidebar.file_uploader(
+    "Upload XLSX or CSV", type=["xlsx", "csv"]
+)
+if uploaded_file:
+    uploaded_df = load_data(uploaded_file)
+    st.sidebar.success("✅ File uploaded successfully!")
+    df = pd.concat([df, uploaded_df], ignore_index=True)
 
 # ------------------- SESSION STATE -------------------
 if "page" not in st.session_state:
@@ -68,7 +82,6 @@ def main_page():
         st.stop()
 
     if st.sidebar.button("🧹 Clear Filters"):
-        # Reset everything including widget values
         for key in reset_keys:
             if key == "filtered_df":
                 st.session_state[key] = df.copy()
@@ -80,7 +93,7 @@ def main_page():
                 st.session_state[key] = 0
             else:
                 st.session_state[key] = {}
-        st.rerun()   # force UI refresh
+        st.rerun()
 
     # Start with full df
     filtered_df = df.copy()
@@ -89,11 +102,9 @@ def main_page():
     select_all_state = st.session_state["select_all_state"]
 
     # ------------------- FILTER LOGIC -------------------
-    # Iterate over columns, but update options dynamically
     for col in df.columns:
         st.sidebar.markdown(f'<div class="filter-heading">{col}</div>', unsafe_allow_html=True)
 
-        # Date filter
         if "date" in col.lower():
             min_date, max_date = df[col].min(), df[col].max()
             start_date, end_date = st.sidebar.date_input(
@@ -109,23 +120,16 @@ def main_page():
                 & (filtered_df[col] <= pd.to_datetime(end_date))
             ]
         else:
-            # 🔑 Options based on current filtered_df (cascading behavior)
             options = sorted(filtered_df[col].dropna().astype(str).unique())
-
-            # Search box
             search_term = st.sidebar.text_input(f"Search {col}", "", key=f"search_{col}")
             if search_term:
                 options = [opt for opt in options if search_term.lower() in opt.lower()]
-
-            # Select all checkbox
             select_all = st.sidebar.checkbox(
                 f"Select All {col}",
                 key=f"select_all_{col}",
                 value=select_all_state.get(col, False),
             )
             select_all_state[col] = select_all
-
-            # Multiselect
             if select_all:
                 selected_values[col] = options
             else:
@@ -139,8 +143,6 @@ def main_page():
                     selected_values[col] = selected
                 elif col in selected_values:
                     selected_values.pop(col)
-
-            # Apply filter immediately
             if col in selected_values and selected_values[col]:
                 filtered_df = filtered_df[filtered_df[col].astype(str).isin(selected_values[col])]
 
